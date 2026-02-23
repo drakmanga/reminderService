@@ -1,0 +1,94 @@
+{% if reminders %}
+<table class="reminders-table">
+    <thead>
+        <tr>
+            <th class="th-sort" onclick="setSort('id')" title="Ordina per ID">
+                # {% if sort == 'id' %}↑{% elif sort == 'id_desc' %}↓{% else %}<span class="th-arrow">↕</span>{% endif %}
+            </th>
+            <th>Messaggio</th>
+            <th class="th-sort" onclick="setSort(_currentSort === 'date' ? 'date_desc' : 'date')" title="Ordina per data">
+                Prossima esecuzione {% if sort == 'date' %}↑{% elif sort == 'date_desc' %}↓{% else %}<span class="th-arrow">↕</span>{% endif %}
+            </th>
+            <th class="th-sort" onclick="setSort('status')" title="Ordina per stato">
+                Stato {% if sort == 'status' %}↑{% else %}<span class="th-arrow">↕</span>{% endif %}
+            </th>
+            <th>Ricorrenza</th>
+            <th>Azioni</th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for r in reminders %}
+        <tr class="row-{{ r.status }}">
+            <td>{{ r.id }}</td>
+            <td class="reminder-msg">
+                <span class="reminder-msg-full">{{ r.message }}</span>
+            </td>
+            <td>{{ r.next_execution | to_local(user_tz) }}</td>
+            <td>
+                {% if r.status == 'pending' and r.recurrence_json and r.recurrence_json != 'null' %}
+                    <span class="badge badge-recurrent" title="Prossima esecuzione schedulata">
+                        🔁 {{ r.next_execution | to_local_short(user_tz) }}
+                    </span>
+                {% elif r.status == 'pending' %}
+                    <span class="badge badge-pending">
+                        ⏳ {{ r.next_execution | to_local_short(user_tz) }}
+                    </span>
+                {% elif r.status == 'sent' %}
+                    <span class="badge badge-sent">📨 In attesa</span>
+                {% elif r.status == 'completed' %}
+                    <span class="badge badge-recurrent">🔁 {{ r.next_execution | to_local_short(user_tz) }}</span>
+                {% elif r.status == 'paused' %}
+                    <span class="badge badge-paused">⏸️ In pausa</span>
+                {% elif r.status == 'resolved' %}
+                    <span class="badge badge-resolved">✅ Risolto</span>
+                {% elif r.status == 'deleted' %}
+                    <span class="badge badge-deleted">🗑️ Eliminato</span>
+                {% else %}
+                    <span class="badge badge-{{ r.status }}">{{ r.status }}</span>
+                {% endif %}
+            </td>
+            <td>
+                {% if r.recurrence_json and r.recurrence_json != 'null' %}
+                    {% set rec = r.recurrence_json | from_json %}
+                    <span class="rec-badge">🔁 {{ rec.type }}</span>
+                {% else %}
+                    <span style="color: var(--text-muted)">—</span>
+                {% endif %}
+            </td>
+            <td>
+                <div class="actions">
+                    {% if r.status == 'deleted' %}
+                        <button class="btn-icon action-restore" title="Ripristina" data-id="{{ r.id }}">♻️</button>
+                    {% elif r.status == 'resolved' %}
+                        <button class="btn-icon action-delete" title="Elimina" data-id="{{ r.id }}">🗑️</button>
+                    {% else %}
+                        <button class="btn-icon action-edit" title="Modifica"
+                            data-id="{{ r.id }}"
+                            data-message="{{ r.message | e }}"
+                            data-next-exec="{{ r.next_execution | to_local_input(user_tz) }}"
+                            data-recurrence="{{ r.recurrence_json or '' }}">✏️</button>
+                        <button class="btn-icon action-pause" title="{{ 'Riprendi' if r.status == 'paused' else 'Pausa' }}"
+                            data-id="{{ r.id }}"
+                            data-status="{{ r.status }}">
+                            {{ '▶️' if r.status == 'paused' else '⏸️' }}
+                        </button>
+                        {% if r.recurrence_json and r.recurrence_json != 'null' %}
+                        <button class="btn-icon action-resolve" title="Risolvi definitivamente"
+                            data-id="{{ r.id }}" style="color:var(--success)">✅</button>
+                        {% endif %}
+                        <button class="btn-icon action-delete" title="Elimina" data-id="{{ r.id }}">🗑️</button>
+                    {% endif %}
+                </div>
+            </td>
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>
+
+{% else %}
+<div class="empty-state">
+    <span class="emoji">📭</span>
+    <p>Nessun reminder. Creane uno!</p>
+</div>
+{% endif %}
+

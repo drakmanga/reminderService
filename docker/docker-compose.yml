@@ -1,0 +1,38 @@
+version: "3.9"
+
+services:
+  reminder_app:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: reminder_system
+    restart: unless-stopped
+
+    ports:
+      - "8000:8000"
+
+    environment:
+      - APP_ENV=prod
+      - SECRET_KEY=${SECRET_KEY:-cambia-questa-chiave-in-produzione}
+
+    volumes:
+      # Dati persistenti (DB + backup)
+      - ./data:/app/data
+      # Log persistenti
+      - ./logs:/app/logs
+      # Config (montata esternamente per non committare token)
+      - ./config.yaml:/app/config.yaml:ro
+
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+

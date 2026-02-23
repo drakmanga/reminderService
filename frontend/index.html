@@ -1,0 +1,746 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reminder System</title>
+    <link rel="icon" type="image/png" href="/static/icon.png?v=2">
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="header">
+    <div class="header-left">
+        <h1><img src="/static/icon.png?v=2" alt="icon" style="height:48px;width:48px;vertical-align:middle;margin-right:8px;border-radius:8px;object-fit:contain;"> Reminder System</h1>
+    </div>
+    <div class="header-center">
+        <div id="clock" class="clock">--:--:--</div>
+        <div class="timezone-selector">
+            <label for="timezone-select">🌍</label>
+            <select id="timezone-select" onchange="updateTimezone(this.value)">
+                <option value="Europe/Rome">Europe/Rome</option>
+                <option value="UTC">UTC</option>
+                <option value="America/New_York">America/New_York</option>
+                <option value="Asia/Tokyo">Asia/Tokyo</option>
+            </select>
+        </div>
+    </div>
+    <div class="header-right">
+        {% if user %}
+            <button class="btn-settings" onclick="openSettingsModal()" title="Impostazioni">⚙️</button>
+            <span class="user-badge">👤 {{ user }}</span>
+            <button class="btn btn-outline"
+                hx-post="/logout"
+                hx-swap="none"
+                onclick="location.reload()">Logout</button>
+        {% endif %}
+    </div>
+</header>
+
+<!-- LOGIN MODAL -->
+<div id="login-modal" class="modal {% if user %}hidden{% endif %}">
+    <div class="modal-content">
+        <h2>🔐 Accedi</h2>
+        <form id="login-form"
+              hx-post="/login"
+              hx-target="#login-error"
+              hx-on::after-request="handleLoginResponse(event)">
+            <div class="form-group">
+                <label>Username</label>
+                <input type="text" name="username" required placeholder="admin">
+            </div>
+            <div class="form-group">
+                <label>Password</label>
+                <input type="password" name="password" required placeholder="••••••••">
+            </div>
+            <div id="login-error" class="error-msg"></div>
+            <button type="submit" class="btn btn-primary btn-full">Accedi</button>
+        </form>
+    </div>
+</div>
+
+<!-- MAIN CONTENT -->
+<main class="main {% if not user %}hidden{% endif %}" id="main-content">
+
+    <!-- CREA REMINDER -->
+    <section class="card">
+        <h2>➕ Nuovo Reminder</h2>
+        <form hx-post="/reminders"
+              hx-target="#reminders-list"
+              hx-swap="innerHTML"
+              hx-on::after-request="clearForm(event)"
+              class="create-form">
+            <div class="form-row">
+                <div class="form-group flex-3">
+                    <label>Messaggio</label>
+                    <textarea name="message" id="create-message" maxlength="500" required
+                              placeholder="Ricordati di..."
+                              oninput="updateCharCount('create-message','create-char-count')"></textarea>
+                    <small class="char-count" id="create-char-count">500 caratteri rimanenti</small>
+                </div>
+                <div class="form-group flex-2">
+                    <label>Data e ora</label>
+                    <input type="datetime-local" name="next_execution" required id="next-exec-input">
+                </div>
+                <div class="form-group flex-2">
+                    <label>Ricorrenza</label>
+                    <select name="recurrence_type" onchange="updateRecurrence(this)">
+                        <option value="">Nessuna</option>
+                        <option value="minutely">Ogni N minuti</option>
+                        <option value="hourly">Ogni N ore</option>
+                        <option value="daily">Giornaliero</option>
+                        <option value="weekly">Settimanale</option>
+                        <option value="monthly">Mensile</option>
+                    </select>
+                    <input type="number" id="recurrence-interval" name="recurrence_interval"
+                           min="1" value="1" class="hidden" placeholder="Intervallo">
+                    <input type="hidden" name="recurrence_json" id="recurrence-json">
+                </div>
+            </div>
+            <button type="submit" class="btn btn-primary">Crea Reminder</button>
+        </form>
+    </section>
+
+    <!-- LISTA REMINDER -->
+    <section class="card">
+        <div class="section-header">
+            <h2>📋 I tuoi Reminder</h2>
+            <div style="display:flex;align-items:center;gap:.8rem;flex-wrap:wrap">
+                <div class="legend">
+                    <span class="badge badge-pending has-tooltip" data-tooltip="Il reminder è schedulato e verrà inviato all'orario impostato.">⏳ In attesa</span>
+                    <span class="badge badge-recurrent has-tooltip" data-tooltip="Reminder ricorrente già confermato. Mostra quando arriverà la prossima notifica.">🔁 Ricorrente</span>
+                    <span class="badge badge-sent has-tooltip" data-tooltip="Notifica inviata su Telegram. Verrà risollecitata ogni ora finché non premi ✔.">📨 In attesa</span>
+                    <span class="badge badge-paused has-tooltip" data-tooltip="Reminder in pausa. Non verrà inviato finché non lo riprendi con ▶️.">⏸️ In pausa</span>
+                    <span class="badge badge-resolved has-tooltip" data-tooltip="Reminder chiuso definitivamente. Non verrà più inviato.">✅ Risolto</span>
+                </div>
+                <button class="filter-btn filter-deleted" id="toggle-deleted" onclick="toggleDeleted()">🗑️ Mostra eliminati</button>
+            </div>
+        </div>
+        <div id="reminders-list">
+            <div class="loading">Caricamento...</div>
+        </div>
+    </section>
+
+</main>
+
+<!-- MODAL SETTINGS -->
+<div id="settings-modal" class="modal hidden modal-settings">
+    <div class="modal-content">
+        <div class="modal-settings-header">
+            <h2>⚙️ Impostazioni</h2>
+            <button class="btn-close-modal" onclick="closeSettingsModal()">✕</button>
+        </div>
+        <div class="tab-pills">
+            <button class="tab-pill active" onclick="switchSettingsTab('telegram')">🤖 Telegram</button>
+            <button class="tab-pill" onclick="switchSettingsTab('tema')">🎨 Tema</button>
+            <button class="tab-pill" onclick="switchSettingsTab('account')">👤 Account</button>
+        </div>
+
+        <!-- TAB TELEGRAM -->
+        <div id="tab-telegram" class="tab-pane active">
+
+            <!-- Token -->
+            <p class="settings-section-title">Token Bot</p>
+            <div class="form-group">
+                <input type="password" id="st-token" placeholder="Incolla il nuovo token..."
+                       autocomplete="off" style="width:100%">
+                <small class="field-hint">Ottienilo da <a href="https://t.me/BotFather" target="_blank">@BotFather</a></small>
+            </div>
+            <div style="margin-top:.7rem;display:flex;gap:.6rem;align-items:center">
+                <button class="btn btn-primary btn-sm" onclick="saveToken()">💾 Salva token</button>
+                <div id="fb-token" class="settings-feedback"></div>
+            </div>
+            <div id="st-token-current" style="margin-top:.6rem;font-size:.8rem;color:var(--text-muted)"></div>
+
+            <hr class="settings-divider">
+
+            <!-- Chat IDs -->
+            <p class="settings-section-title">Chat IDs</p>
+            <ul class="chatid-list" id="chatid-list"></ul>
+            <div class="add-chatid-row">
+                <input type="number" id="st-new-chatid" placeholder="Nuovo Chat ID (es: 140722661)">
+                <button class="btn btn-outline btn-sm" onclick="addChatId()">➕ Aggiungi</button>
+            </div>
+            <small class="field-hint" style="margin-top:.4rem">Usa <a href="https://t.me/userinfobot" target="_blank">@userinfobot</a> per trovare il tuo ID</small>
+            <div id="fb-chatids" class="settings-feedback"></div>
+
+            <hr class="settings-divider">
+
+            <!-- Test -->
+            <button class="btn btn-outline btn-sm" onclick="testTelegram()">📨 Invia messaggio di test</button>
+            <div id="fb-test" class="settings-feedback"></div>
+        </div>
+
+        <!-- TAB TEMA -->
+        <div id="tab-tema" class="tab-pane">
+            <p class="settings-section-title">Aspetto</p>
+            <div class="theme-toggle-wrap">
+                <input type="checkbox" id="theme-switch" onchange="applyTheme(this.checked)">
+                <label class="theme-toggle-label" for="theme-switch">
+                    <span class="theme-icon">🌙</span>
+                    <span class="theme-track"></span>
+                    <span class="theme-icon">☀️</span>
+                </label>
+                <p class="theme-hint" id="theme-hint">Tema scuro attivo</p>
+            </div>
+        </div>
+
+        <!-- TAB ACCOUNT -->
+        <div id="tab-account" class="tab-pane">
+            <!-- Username -->
+            <p class="settings-section-title">Cambia Username</p>
+            <div class="form-group">
+                <input type="text" id="acc-username" placeholder="Nuovo username"
+                       autocomplete="off" style="width:100%">
+            </div>
+
+            <hr class="settings-divider">
+
+            <!-- Password -->
+            <p class="settings-section-title">Cambia Password</p>
+            <div class="form-group">
+                <input type="password" id="acc-new-password"
+                       placeholder="Nuova password (min. 6 caratteri)"
+                       autocomplete="new-password" style="width:100%">
+            </div>
+            <div class="form-group" style="margin-top:.6rem">
+                <input type="password" id="acc-confirm-password"
+                       placeholder="Conferma nuova password"
+                       autocomplete="new-password" style="width:100%">
+            </div>
+
+            <hr class="settings-divider">
+
+            <!-- Password attuale (sempre richiesta) -->
+            <div class="form-group">
+                <label style="font-size:.8rem;color:var(--text-muted)">🔑 Password attuale (richiesta per confermare)</label>
+                <input type="password" id="acc-current-password"
+                       placeholder="Password attuale"
+                       autocomplete="current-password" style="width:100%;margin-top:.3rem">
+            </div>
+
+            <div style="margin-top:1rem">
+                <button class="btn btn-primary btn-sm" onclick="saveAccount()">💾 Salva modifiche</button>
+            </div>
+            <div id="fb-account" class="settings-feedback"></div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL MODIFICA -->
+<div id="edit-modal" class="modal hidden">
+    <div class="modal-content">
+        <h2>✏️ Modifica Reminder</h2>
+        <div id="edit-form-container"></div>
+    </div>
+</div>
+
+<!-- MODAL CONFERMA ELIMINAZIONE -->
+<div id="delete-modal" class="modal hidden">
+    <div class="modal-content modal-small">
+        <h2>🗑️ Conferma eliminazione</h2>
+        <p>Sei sicuro di voler eliminare questo reminder?</p>
+        <div class="modal-actions">
+            <button class="btn btn-danger" id="confirm-delete-btn">Elimina</button>
+            <button class="btn btn-outline" onclick="closeDeleteModal()">Annulla</button>
+        </div>
+    </div>
+</div>
+
+<script>
+// ---- CLOCK ----
+let currentTimezone = 'Europe/Rome';
+function updateClock() {
+    const now = new Date();
+    document.getElementById('clock').textContent = now.toLocaleTimeString('it-IT', {
+        timeZone: currentTimezone,
+        hour: '2-digit', minute: '2-digit', second: '2-digit'
+    });
+}
+function updateTimezone(tz) { currentTimezone = tz; }
+setInterval(updateClock, 1000);
+updateClock();
+
+// Imposta ora corrente nel datetime-local
+document.addEventListener('DOMContentLoaded', () => {
+    const input = document.getElementById('next-exec-input');
+    if (input) {
+        const now = new Date();
+        now.setMinutes(now.getMinutes() + 5);
+        input.value = now.toISOString().slice(0, 16);
+    }
+});
+
+// ---- LOGIN ----
+function handleLoginResponse(event) {
+    if (event.detail.successful) {
+        document.getElementById('login-modal').classList.add('hidden');
+        document.getElementById('main-content').classList.remove('hidden');
+        window.location.reload();
+    } else {
+        let msg = 'Credenziali non valide';
+        try {
+            const resp = JSON.parse(event.detail.xhr.responseText);
+            if (resp.detail) msg = resp.detail;
+        } catch(e) {}
+        document.getElementById('login-error').textContent = msg;
+    }
+}
+
+// ---- CHAR COUNTER ----
+function updateCharCount(textareaId, counterId) {
+    const ta = document.getElementById(textareaId);
+    const el = document.getElementById(counterId);
+    if (!ta || !el) return;
+    const remaining = 500 - ta.value.length;
+    el.textContent = remaining + ' caratteri rimanenti';
+    el.classList.toggle('char-count-warn', remaining <= 50);
+    el.classList.toggle('char-count-danger', remaining <= 10);
+}
+
+// ---- FORM CLEAR ----
+function clearForm(event) {
+    if (event.detail.successful) {
+        event.target.reset();
+        document.getElementById('recurrence-json').value = '';
+        document.getElementById('recurrence-interval').classList.add('hidden');
+    }
+}
+
+// ---- RECURRENCE ----
+function updateRecurrence(sel) {
+    const interval = document.getElementById('recurrence-interval');
+    const jsonInput = document.getElementById('recurrence-json');
+    const type = sel.value;
+
+    if (type === '' ) {
+        interval.classList.add('hidden');
+        jsonInput.value = '';
+        return;
+    }
+
+    if (type === 'minutely' || type === 'hourly') {
+        interval.classList.remove('hidden');
+    } else {
+        interval.classList.add('hidden');
+        interval.value = 1;
+    }
+
+    sel.form.addEventListener('submit', function() {
+        const val = interval.value || 1;
+        jsonInput.value = JSON.stringify({ type: type, interval: parseInt(val) });
+    }, { once: true });
+}
+
+// ---- EDIT MODAL ----
+function openEditModal(id, message, nextExec, recurrenceJson) {
+    const container = document.getElementById('edit-form-container');
+
+    // Parsa la ricorrenza attuale per pre-compilare i campi
+    let recType = '', recInterval = 1;
+    try {
+        if (recurrenceJson) {
+            const rec = JSON.parse(recurrenceJson);
+            recType = rec.type || '';
+            recInterval = rec.interval || 1;
+        }
+    } catch(e) {}
+
+    const showInterval = (recType === 'minutely' || recType === 'hourly') ? '' : 'hidden';
+
+    container.innerHTML = `
+        <div class="form-group">
+            <label>Messaggio</label>
+            <textarea id="edit-message" maxlength="500" required style="width:100%;min-height:80px"
+                      oninput="updateCharCount('edit-message','edit-char-count')">${message}</textarea>
+            <small class="char-count" id="edit-char-count">${500 - message.length} caratteri rimanenti</small>
+        </div>
+        <div class="form-group" style="margin-top:1rem">
+            <label>Data e ora</label>
+            <input type="datetime-local" id="edit-next-exec" value="${nextExec}" required style="width:100%">
+        </div>
+        <div class="form-group" style="margin-top:1rem">
+            <label>Ricorrenza</label>
+            <select id="edit-rec-type" style="width:100%" onchange="onEditRecurrenceChange()">
+                <option value=""       ${recType===''        ? 'selected':''}>Nessuna</option>
+                <option value="minutely" ${recType==='minutely'? 'selected':''}>Ogni N minuti</option>
+                <option value="hourly"   ${recType==='hourly'  ? 'selected':''}>Ogni N ore</option>
+                <option value="daily"    ${recType==='daily'   ? 'selected':''}>Giornaliero</option>
+                <option value="weekly"   ${recType==='weekly'  ? 'selected':''}>Settimanale</option>
+                <option value="monthly"  ${recType==='monthly' ? 'selected':''}>Mensile</option>
+            </select>
+            <input type="number" id="edit-rec-interval" min="1" value="${recInterval}"
+                   placeholder="Intervallo" style="width:100%;margin-top:.4rem"
+                   class="${showInterval}">
+        </div>
+        <div style="margin-top:1.2rem;display:flex;gap:.8rem;justify-content:center">
+            <button class="btn btn-primary" onclick="submitEdit(${id})">Salva</button>
+            <button class="btn btn-outline" onclick="closeEditModal()">Annulla</button>
+        </div>`;
+    document.getElementById('edit-modal').classList.remove('hidden');
+}
+
+function onEditRecurrenceChange() {
+    const type = document.getElementById('edit-rec-type').value;
+    const intervalInput = document.getElementById('edit-rec-interval');
+    if (type === 'minutely' || type === 'hourly') {
+        intervalInput.classList.remove('hidden');
+    } else {
+        intervalInput.classList.add('hidden');
+    }
+}
+
+async function submitEdit(id) {
+    const message = document.getElementById('edit-message').value;
+    const nextExec = document.getElementById('edit-next-exec').value;
+    const recType = document.getElementById('edit-rec-type').value;
+    const recInterval = document.getElementById('edit-rec-interval').value || 1;
+
+    if (!message || !nextExec) { alert('Compila tutti i campi'); return; }
+
+    let recurrenceJson = '';
+    if (recType) recurrenceJson = JSON.stringify({ type: recType, interval: parseInt(recInterval) });
+
+    const formData = new FormData();
+    formData.append('message', message);
+    formData.append('next_execution', nextExec);
+    formData.append('recurrence_json', recurrenceJson);
+
+    try {
+        const resp = await fetch(`/reminders/${id}`, { method: 'PUT', body: formData });
+        if (resp.ok) { closeEditModal(); await _refreshList(); }
+        else alert('Errore nel salvataggio');
+    } catch(e) { alert('Errore di rete: ' + e.message); }
+}
+
+function closeEditModal() {
+    document.getElementById('edit-modal').classList.add('hidden');
+}
+
+// ---- RESOLVE ----
+async function confirmResolve(id) {
+    if (!confirm('Segna come risolto definitivamente?\nIl reminder non verrà più inviato.')) return;
+    try {
+        const resp = await fetch(`/confirm/resolve/${id}`, { method: 'POST' });
+        if (resp.ok) await _refreshList();
+        else alert('Errore durante la risoluzione');
+    } catch(e) { alert('Errore di rete: ' + e.message); }
+}
+
+// ---- RESTORE ----
+async function restoreReminder(id) {
+    try {
+        const f = new FormData(); f.append('status', 'pending');
+        const resp = await fetch(`/reminders/${id}`, { method: 'PUT', body: f });
+        if (resp.ok) await _refreshList();
+        else alert('Errore nel ripristino');
+    } catch(e) { alert('Errore di rete: ' + e.message); }
+}
+
+// ---- DELETE MODAL ----
+let pendingDeleteId = null;
+function confirmDelete(id) {
+    pendingDeleteId = id;
+    document.getElementById('delete-modal').classList.remove('hidden');
+    document.getElementById('confirm-delete-btn').onclick = async function() {
+        try {
+            const resp = await fetch(`/reminders/${pendingDeleteId}`, { method: 'DELETE' });
+            if (resp.ok) await _refreshList();
+            else alert('Errore durante l\'eliminazione');
+        } catch(e) { alert('Errore di rete: ' + e.message); }
+        closeDeleteModal();
+    };
+}
+function closeDeleteModal() {
+    document.getElementById('delete-modal').classList.add('hidden');
+    pendingDeleteId = null;
+}
+
+// ---- PAUSE ----
+async function togglePause(id, currentStatus) {
+    const newStatus = currentStatus === 'paused' ? 'pending' : 'paused';
+    const formData = new FormData();
+    formData.append('status', newStatus);
+    try {
+        const resp = await fetch(`/reminders/${id}`, { method: 'PUT', body: formData });
+        if (resp.ok) await _refreshList();
+        else alert('Errore nel cambio stato');
+    } catch(e) { alert('Errore di rete: ' + e.message); }
+}
+
+// ---- SETTINGS MODAL ----
+let _chatIds = [];
+
+function openSettingsModal() {
+    document.getElementById('settings-modal').classList.remove('hidden');
+    loadSettingsModal();
+}
+function closeSettingsModal() {
+    document.getElementById('settings-modal').classList.add('hidden');
+}
+function switchSettingsTab(tab) {
+    document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.tab-pill').forEach(p => p.classList.remove('active'));
+    document.getElementById('tab-' + tab).classList.add('active');
+    event.target.classList.add('active');
+}
+
+async function loadSettingsModal() {
+    try {
+        const resp = await fetch('/settings');
+        if (!resp.ok) return;
+        const data = await resp.json();
+        _chatIds = data.chat_ids || [];
+
+        // Token
+        const tokenEl = document.getElementById('st-token-current');
+        tokenEl.textContent = data.telegram_token_set
+            ? `Token attivo: ${data.telegram_token_masked}`
+            : '⚠️ Nessun token configurato';
+
+        // Chat IDs
+        renderChatIdList(_chatIds);
+    } catch(e) {}
+}
+
+function renderChatIdList(ids) {
+    const ul = document.getElementById('chatid-list');
+    if (!ids.length) {
+        ul.innerHTML = '<li class="chatid-empty">Nessun Chat ID configurato</li>';
+        return;
+    }
+    ul.innerHTML = ids.map(id => `
+        <li class="chatid-item">
+            <span>${id}</span>
+            <button onclick="removeChatId(${id})" title="Rimuovi">🗑️</button>
+        </li>`).join('');
+}
+
+async function saveToken() {
+    const token = document.getElementById('st-token').value.trim();
+    const fb = document.getElementById('fb-token');
+    if (!token) { fb.innerHTML = '<span class="err">Inserisci il token</span>'; return; }
+
+    const already = document.getElementById('st-token-current').textContent.includes('Token attivo');
+    const msg = already
+        ? 'Sei sicuro? Questo sovrascriverà il token attuale.'
+        : 'Salvare questo token bot?';
+    if (!confirm(msg)) return;
+
+    fb.innerHTML = '<span style="color:var(--text-muted)">⏳ Verifica in corso...</span>';
+    const f = new FormData(); f.append('telegram_token', token);
+    try {
+        const resp = await fetch('/settings/token', { method: 'POST', body: f });
+        const data = await resp.json();
+        if (resp.ok) {
+            fb.innerHTML = `<span class="ok">✅ ${data.message}</span>`;
+            document.getElementById('st-token').value = '';
+            await loadSettingsModal();
+        } else {
+            fb.innerHTML = `<span class="err">❌ ${data.error}</span>`;
+        }
+    } catch(e) { fb.innerHTML = `<span class="err">Errore: ${e.message}</span>`; }
+}
+
+async function addChatId() {
+    const input = document.getElementById('st-new-chatid');
+    const val = input.value.trim();
+    const fb = document.getElementById('fb-chatids');
+    if (!val) { fb.innerHTML = '<span class="err">Inserisci un Chat ID</span>'; return; }
+    const id = parseInt(val);
+    if (isNaN(id)) { fb.innerHTML = '<span class="err">ID non valido — deve essere un numero</span>'; return; }
+    if (_chatIds.includes(id)) { fb.innerHTML = '<span class="err">ID già presente</span>'; return; }
+
+    if (!confirm(`Aggiungere il Chat ID ${id} alla lista attuale?`)) return;
+
+    const newIds = [..._chatIds, id];
+    await _saveChatIds(newIds, fb);
+    input.value = '';
+}
+
+async function removeChatId(id) {
+    if (!confirm(`Rimuovere il Chat ID ${id}?`)) return;
+    const newIds = _chatIds.filter(x => x !== id);
+    await _saveChatIds(newIds, document.getElementById('fb-chatids'));
+}
+
+async function _saveChatIds(ids, fb) {
+    const f = new FormData();
+    f.append('chat_ids', ids.join('\n'));
+    try {
+        const resp = await fetch('/settings/chat-ids', { method: 'POST', body: f });
+        const data = await resp.json();
+        if (resp.ok) {
+            _chatIds = data.chat_ids;
+            renderChatIdList(_chatIds);
+            fb.innerHTML = `<span class="ok">✅ ${data.message}</span>`;
+        } else {
+            fb.innerHTML = `<span class="err">❌ ${data.error}</span>`;
+        }
+    } catch(e) { fb.innerHTML = `<span class="err">Errore: ${e.message}</span>`; }
+}
+
+async function testTelegram() {
+    const fb = document.getElementById('fb-test');
+    fb.innerHTML = '<span style="color:var(--text-muted)">⏳ Invio...</span>';
+    try {
+        const resp = await fetch('/settings/test', { method: 'POST' });
+        const data = await resp.json();
+        if (resp.ok && data.all_ok) {
+            fb.innerHTML = `<span class="ok">✅ Test inviato su tutti i chat!</span>`;
+        } else if (resp.ok) {
+            const fails = data.results.filter(r => !r.ok).map(r => r.chat_id).join(', ');
+            fb.innerHTML = `<span class="err">⚠️ Fallito per: ${fails}</span>`;
+        } else {
+            fb.innerHTML = `<span class="err">❌ ${data.error}</span>`;
+        }
+    } catch(e) { fb.innerHTML = `<span class="err">Errore: ${e.message}</span>`; }
+}
+
+// ---- ACCOUNT ----
+async function saveAccount() {
+    const newUsername    = document.getElementById('acc-username').value.trim();
+    const newPassword    = document.getElementById('acc-new-password').value;
+    const confirmPwd     = document.getElementById('acc-confirm-password').value;
+    const currentPwd     = document.getElementById('acc-current-password').value.trim();
+    const fb             = document.getElementById('fb-account');
+
+    if (!currentPwd) { fb.innerHTML = '<span class="err">Inserisci la password attuale</span>'; return; }
+    if (!newUsername && !newPassword) { fb.innerHTML = '<span class="err">Inserisci un nuovo username o una nuova password</span>'; return; }
+    if (newPassword && newPassword !== confirmPwd) { fb.innerHTML = '<span class="err">Le password non coincidono</span>'; return; }
+
+    fb.innerHTML = '<span style="color:var(--text-muted)">⏳ Salvataggio...</span>';
+    const f = new FormData();
+    f.append('current_password', currentPwd);
+    if (newUsername) f.append('new_username', newUsername);
+    if (newPassword) f.append('new_password', newPassword);
+    if (confirmPwd)  f.append('confirm_password', confirmPwd);
+
+    try {
+        const resp = await fetch('/settings/account', { method: 'POST', body: f });
+        const data = await resp.json();
+        if (resp.ok) {
+            fb.innerHTML = `<span class="ok">✅ ${data.message}</span>`;
+            // Aggiorna il badge username nell'header se cambiato
+            if (newUsername) {
+                const badge = document.querySelector('.user-badge');
+                if (badge) badge.textContent = `👤 ${data.new_username}`;
+            }
+            // Reset campi
+            document.getElementById('acc-username').value = '';
+            document.getElementById('acc-new-password').value = '';
+            document.getElementById('acc-confirm-password').value = '';
+            document.getElementById('acc-current-password').value = '';
+        } else {
+            fb.innerHTML = `<span class="err">❌ ${data.error}</span>`;
+        }
+    } catch(e) { fb.innerHTML = `<span class="err">Errore: ${e.message}</span>`; }
+}
+
+// ---- TEMA ----
+function applyTheme(isLight) {
+    document.body.classList.toggle('light', isLight);
+    localStorage.setItem('theme', isLight ? 'light' : 'dark');
+    document.getElementById('theme-hint').textContent = isLight ? 'Tema chiaro attivo' : 'Tema scuro attivo';
+}
+function initTheme() {
+    const saved = localStorage.getItem('theme');
+    const isLight = saved === 'light';
+    document.body.classList.toggle('light', isLight);
+    const sw = document.getElementById('theme-switch');
+    if (sw) sw.checked = isLight;
+    const hint = document.getElementById('theme-hint');
+    if (hint) hint.textContent = isLight ? 'Tema chiaro attivo' : 'Tema scuro attivo';
+}
+
+// ---- FILTRI + POLLING ----
+
+// ---- FILTRI + POLLING ----
+let _currentSort = 'status';
+let _showDeleted = false;
+let _pollTimer = null;
+const POLL_INTERVAL = 30000; // 30s — la lista non richiede aggiornamenti al millisecondo
+
+async function _refreshList() {
+    const url = `/reminders?sort=${_currentSort}&show_deleted=${_showDeleted}`;
+    try {
+        const resp = await fetch(url, { headers: { 'HX-Request': 'true' } });
+        if (resp.ok) {
+            const html = await resp.text();
+            const list = document.getElementById('reminders-list');
+            if (list) { list.innerHTML = html; htmx.process(list); }
+        }
+    } catch(e) { /* ignora errori di rete silenziosi */ }
+}
+
+function _startPolling() {
+    if (_pollTimer) clearInterval(_pollTimer);
+    _pollTimer = setInterval(() => {
+        // Non fare richieste se la tab è in background
+        if (!document.hidden) _refreshList();
+    }, POLL_INTERVAL);
+}
+
+function setSort(sort) { _currentSort = sort; _refreshList(); }
+
+function toggleDeleted() {
+    _showDeleted = !_showDeleted;
+    const btn = document.getElementById('toggle-deleted');
+    btn.classList.toggle('active', _showDeleted);
+    btn.textContent = _showDeleted ? '🗑️ Nascondi eliminati' : '🗑️ Mostra eliminati';
+    _refreshList();
+}
+
+// Riprendi il polling quando la tab torna in primo piano
+document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) _refreshList(); // aggiorna subito al ritorno
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+    initTheme();
+    _refreshList();
+    _startPolling();
+    // Banner avviso se Telegram non configurato
+    fetch('/settings').then(r => r.ok ? r.json() : null).then(data => {
+        if (data && !data.telegram_token_set) {
+            const banner = document.createElement('div');
+            banner.className = 'config-banner';
+            banner.innerHTML = `⚠️ <strong>Telegram non configurato.</strong> Clicca su <a href="#" onclick="openSettingsModal();return false;">⚙️ Impostazioni</a> per inserire il token del bot e i Chat ID.`;
+            document.getElementById('main-content')?.prepend(banner);
+        }
+    }).catch(()=>{});
+});
+
+// ---- LISTENER DELEGATO LISTA REMINDER ----
+// Sul document così funziona sempre, anche dopo swap HTMX
+document.addEventListener('click', function(e) {
+    // Chiudi settings modal cliccando fuori
+    if (e.target.id === 'settings-modal') closeSettingsModal();
+    // Chiudi altri modal
+    const editBtn = e.target.closest('.action-edit');
+    const pauseBtn = e.target.closest('.action-pause');
+    const deleteBtn = e.target.closest('.action-delete');
+    const resolveBtn = e.target.closest('.action-resolve');
+    const restoreBtn = e.target.closest('.action-restore');
+
+    if (editBtn) {
+        openEditModal(editBtn.dataset.id, editBtn.dataset.message, editBtn.dataset.nextExec, editBtn.dataset.recurrence);
+    }
+    if (pauseBtn) { togglePause(pauseBtn.dataset.id, pauseBtn.dataset.status); }
+    if (deleteBtn) { confirmDelete(deleteBtn.dataset.id); }
+    if (resolveBtn) { confirmResolve(resolveBtn.dataset.id); }
+    if (restoreBtn) { restoreReminder(restoreBtn.dataset.id); }
+});
+
+// Chiudi modal cliccando fuori
+document.querySelectorAll('.modal').forEach(m => {
+    m.addEventListener('click', function(e) {
+        if (e.target === m && m.id !== 'login-modal') m.classList.add('hidden');
+    });
+});
+</script>
+</body>
+</html>
+
