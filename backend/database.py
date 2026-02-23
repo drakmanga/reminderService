@@ -127,32 +127,38 @@ def set_setting(key: str, value: str):
 def get_telegram_config() -> dict:
     """
     Restituisce la config Telegram attiva.
-    Priorità: DB (impostato dalla UI) → config.yaml → valori vuoti.
+    Priorità per ogni campo: DB (impostato dalla UI) → config.yaml → valore vuoto.
+    Token e chat_ids vengono letti indipendentemente l'uno dall'altro.
     """
     import json, yaml
     from pathlib import Path
 
-    # Prova dal DB
-    token = get_setting("telegram_token")
-    chat_ids_raw = get_setting("telegram_chat_ids")
-
-    if token and chat_ids_raw:
+    # Leggi config.yaml come fallback
+    yaml_token = ""
+    yaml_chat_ids = []
+    config_path = Path(__file__).resolve().parent.parent / "config.yaml"
+    if config_path.exists():
         try:
-            chat_ids = json.loads(chat_ids_raw)
-            return {"telegram_token": token, "chat_ids": chat_ids}
+            with open(config_path) as f:
+                cfg = yaml.safe_load(f)
+            yaml_token = cfg.get("telegram_token", "")
+            yaml_chat_ids = cfg.get("chat_ids", [])
         except Exception:
             pass
 
-    # Fallback su config.yaml
-    config_path = Path(__file__).resolve().parent.parent / "config.yaml"
-    if config_path.exists():
-        with open(config_path) as f:
-            cfg = yaml.safe_load(f)
-        return {
-            "telegram_token": cfg.get("telegram_token", ""),
-            "chat_ids": cfg.get("chat_ids", []),
-        }
+    # Token: DB ha priorità su config.yaml
+    token = get_setting("telegram_token") or yaml_token
 
-    return {"telegram_token": "", "chat_ids": []}
+    # Chat IDs: DB ha priorità su config.yaml
+    chat_ids_raw = get_setting("telegram_chat_ids")
+    if chat_ids_raw:
+        try:
+            chat_ids = json.loads(chat_ids_raw)
+        except Exception:
+            chat_ids = yaml_chat_ids
+    else:
+        chat_ids = yaml_chat_ids
+
+    return {"telegram_token": token, "chat_ids": chat_ids}
 
 
