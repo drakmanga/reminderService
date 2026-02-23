@@ -41,7 +41,8 @@ body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', syste
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 1rem 2rem;
+    padding: 0.5rem 2rem;
+    min-height: 64px;
     background: var(--surface);
     border-bottom: 1px solid var(--border);
     position: sticky;
@@ -49,7 +50,15 @@ body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', syste
     z-index: 100;
 }
 
-.header h1 { font-size: 1.4rem; font-weight: 700; }
+.header h1 { font-size: 1.4rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem; }
+
+.header-logo {
+    height: 52px;
+    width: 52px;
+    object-fit: contain;
+    border-radius: 8px;
+    display: block;
+}
 
 .header-center { display: flex; align-items: center; gap: 1rem; }
 
