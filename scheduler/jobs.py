@@ -275,18 +275,39 @@ def check_and_send_reminders():
         now = datetime.now(timezone.utc)
         now_str = now.strftime("%Y-%m-%dT%H:%M:%S")
 
+        # Prende sia i pending normali sia i ricorrenti 'sent' la cui prossima
+        # occorrenza è già scaduta (utente non ha confermato quella precedente)
         rows = conn.execute(
             """SELECT r.*, u.timezone FROM reminders r
                JOIN users u ON r.user_id = u.id
-               WHERE r.status = 'pending'
-               AND r.deleted_at IS NULL
+               WHERE r.deleted_at IS NULL
                AND substr(r.next_execution,1,19) <= ?
+               AND (
+                   r.status = 'pending'
+                   OR (
+                       r.status = 'sent'
+                       AND r.recurrence_json IS NOT NULL
+                       AND r.recurrence_json != 'null'
+                       AND r.recurrence_json != ''
+                   )
+               )
                ORDER BY r.next_execution ASC""",
             (now_str,),
         ).fetchall()
 
         for row in rows:
             reminder = dict(row)
+
+            # Se era 'sent' ricorrente con occorrenza scaduta: marca le vecchie
+            # executions non confermate come superate e procedi con il nuovo invio
+            if reminder["status"] == "sent":
+                conn.execute(
+                    """UPDATE executions SET confirmed = 1, confirmed_at = ?
+                       WHERE reminder_id = ? AND confirmed = 0""",
+                    (_utc_now_str(), reminder["id"]),
+                )
+                conn.commit()
+                logger.info(f"Reminder {reminder['id']} ricorrente: occorrenza precedente superata, invio nuova")
 
             # Anti-duplicazione: se già inviato nell'ultimo minuto, skip
             if reminder["last_sent_at"]:
