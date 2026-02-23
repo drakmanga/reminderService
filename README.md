@@ -224,12 +224,14 @@ reminder_project/
 Il campo `recurrence_json` accetta:
 
 ```json
-{"type": "minutely", "interval": 30}   // ogni 30 minuti
-{"type": "hourly", "interval": 2}      // ogni 2 ore
-{"type": "daily", "interval": 1}       // ogni giorno
-{"type": "weekly", "interval": 1}      // ogni settimana
-{"type": "monthly", "interval": 1}     // ogni mese (~30 giorni)
+{"type": "minutely", "interval": N}   // ogni N minuti  (1–59)
+{"type": "hourly",   "interval": N}   // ogni N ore     (1–23)
+{"type": "daily",    "interval": N}   // ogni N giorni  (1–6)
+{"type": "weekly",   "interval": N}   // ogni N settimane (1–3)
+{"type": "monthly",  "interval": N}   // ogni N mesi    (1–11)
 ```
+
+> Superato il limite superiore di ogni tipo si passa alla ricorrenza successiva (es. 60 minuti → hourly, 24 ore → daily, 7 giorni → weekly, ecc.).
 
 ---
 
