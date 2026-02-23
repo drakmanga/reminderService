@@ -42,7 +42,7 @@ body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', syste
     align-items: center;
     justify-content: space-between;
     padding: 0.5rem 2rem;
-    min-height: 120px;
+    min-height: 64px;
     background: var(--surface);
     border-bottom: 1px solid var(--border);
     position: sticky;
@@ -58,6 +58,9 @@ body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', syste
     object-fit: contain;
     border-radius: 12px;
     display: block;
+    margin-top: -20px;
+    margin-bottom: -20px;
+    filter: drop-shadow(0 4px 8px rgba(0,0,0,0.3));
 }
 
 .header-center { display: flex; align-items: center; gap: 1rem; }
