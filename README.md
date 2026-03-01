@@ -203,6 +203,54 @@ reminder_project/
 
 ---
 
+## 🤖 Telegram Bot Commands
+
+| Command | Description |
+|---------|-------------|
+| `/start` | Welcome message |
+| `/help` | List all available commands with usage examples |
+| `/reminders` | Show all active reminders (pending, sent, paused) |
+| `/ricordami <when> di <what>` | Create a new reminder |
+
+### `/ricordami` — supported time formats
+
+Time uses **24h format**: `9` = 09:00, `21` = 21:00.
+Both `tra` and `fra` are accepted interchangeably.
+
+#### One-shot
+
+| Format | Example |
+|--------|---------|
+| `oggi alle HH[:MM]` | `/ricordami oggi alle 18:30 di comprare il pane` |
+| `domani alle HH[:MM]` | `/ricordami domani alle 9 di contattare Mario` |
+| `dopodomani alle HH[:MM]` | `/ricordami dopodomani alle 14 di riunione` |
+| `tra/fra X minuti` | `/ricordami tra 30 minuti di controllare il forno` |
+| `tra/fra mezz'ora` | `/ricordami fra mezz'ora di uscire` |
+| `tra/fra X ore` | `/ricordami tra 2 ore di chiamare il medico` |
+| `tra/fra X giorni` | `/ricordami fra 3 giorni di pagare la bolletta` |
+| `<weekday> alle HH[:MM]` | `/ricordami venerdì alle 20 di cena` |
+| `[il] DD mese [YYYY] [alle HH[:MM]]` | `/ricordami il 15 aprile alle 9 di visita medica` |
+
+#### Recurring (`ogni …`)
+
+| Format | Example |
+|--------|---------|
+| `ogni giorno alle HH[:MM]` | `/ricordami ogni giorno alle 8 di fare colazione` |
+| `ogni X giorni alle HH[:MM]` | `/ricordami ogni 3 giorni alle 7 di controllare server` |
+| `ogni <weekday> alle HH[:MM]` | `/ricordami ogni venerdì alle 9 di chiamare il cliente` |
+| `ogni settimana [il <weekday>] alle HH[:MM]` | `/ricordami ogni settimana il lunedì alle 10 di riunione` |
+| `ogni inizio mese [alle HH[:MM]]` | `/ricordami ogni inizio mese alle 9 di controllare le spese` |
+| `ogni fine mese [alle HH[:MM]]` | `/ricordami ogni fine mese alle 18 di rendiconto` |
+| `ogni DD del mese [alle HH[:MM]]` | `/ricordami ogni 18 del mese alle 10 di pagare l'affitto` |
+| `ogni mese [il DD] [alle HH[:MM]]` | `/ricordami ogni mese il 5 alle 9 di bolletta` |
+| `ogni X mesi [il DD] [alle HH[:MM]]` | `/ricordami ogni 3 mesi il 1 alle 9 di revisione trimestrale` |
+| `ogni anno [il DD mese] [alle HH[:MM]]` | `/ricordami ogni anno il 15 marzo alle 9 di visita medica` |
+
+The `di` separator between time and message is optional.
+Reminders created via bot are immediately visible in the web dashboard.
+
+---
+
 ## 🔌 API Endpoints
 
 | Method | Endpoint | Description |
