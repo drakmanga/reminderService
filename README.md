@@ -219,17 +219,24 @@ Both `tra` and `fra` are accepted interchangeably.
 
 #### One-shot
 
-| Format | Example |
-|--------|---------|
-| `oggi alle HH[:MM]` | `/ricordami oggi alle 18:30 di comprare il pane` |
-| `domani alle HH[:MM]` | `/ricordami domani alle 9 di contattare Mario` |
-| `dopodomani alle HH[:MM]` | `/ricordami dopodomani alle 14 di riunione` |
-| `tra/fra X minuti` | `/ricordami tra 30 minuti di controllare il forno` |
-| `tra/fra mezz'ora` | `/ricordami fra mezz'ora di uscire` |
-| `tra/fra X ore` | `/ricordami tra 2 ore di chiamare il medico` |
-| `tra/fra X giorni` | `/ricordami fra 3 giorni di pagare la bolletta` |
-| `<weekday> alle HH[:MM]` | `/ricordami venerdì alle 20 di cena` |
-| `[il] DD mese [YYYY] [alle HH[:MM]]` | `/ricordami il 15 aprile alle 9 di visita medica` |
+| Format | Default time | Example |
+|--------|-------------|---------|
+| `oggi alle HH[:MM]` | — | `/ricordami oggi alle 18:30 di comprare il pane` |
+| `domani alle HH[:MM]` | — | `/ricordami domani alle 9 di contattare Mario` |
+| `dopodomani alle HH[:MM]` | — | `/ricordami dopodomani alle 14 di riunione` |
+| `stasera [alle HH[:MM]]` | 21:00 | `/ricordami stasera di chiamare Mario` |
+| `oggi pomeriggio [alle HH[:MM]]` | 15:00 | `/ricordami oggi pomeriggio di fare la spesa` |
+| `stamattina / stamani [alle HH[:MM]]` | 09:00 | `/ricordami stamattina alle 10 di riunione` |
+| `stanotte [alle HH[:MM]]` | 23:00 | `/ricordami stanotte di prendere la medicina` |
+| `domani mattina [alle HH[:MM]]` | 09:00 | `/ricordami domani mattina di mandare l'email` |
+| `domani pomeriggio [alle HH[:MM]]` | 15:00 | `/ricordami domani pomeriggio alle 14 di appuntamento` |
+| `domani sera [alle HH[:MM]]` | 21:00 | `/ricordami domani sera di cena con amici` |
+| `tra/fra X minuti` | — | `/ricordami tra 30 minuti di controllare il forno` |
+| `tra/fra mezz'ora` | — | `/ricordami fra mezz'ora di uscire` |
+| `tra/fra X ore` | — | `/ricordami tra 2 ore di chiamare il medico` |
+| `tra/fra X giorni` | — | `/ricordami fra 3 giorni di pagare la bolletta` |
+| `<weekday> alle HH[:MM]` | — | `/ricordami venerdì alle 20 di cena` |
+| `[il] DD mese [YYYY] [alle HH[:MM]]` | — | `/ricordami il 15 aprile alle 9 di visita medica` |
 
 #### Recurring (`ogni …`)
 
