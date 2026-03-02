@@ -65,6 +65,14 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "  • oggi alle 14:30\n"
         "  • domani alle 9\n"
         "  • dopodomani alle 21\n"
+        "  • stasera di …\n"
+        "  • stasera alle 20:30 di …\n"
+        "  • oggi pomeriggio di …\n"
+        "  • stamattina di …\n"
+        "  • stanotte di …\n"
+        "  • domani mattina di …\n"
+        "  • domani pomeriggio di …\n"
+        "  • domani sera alle 22 di …\n"
         "  • tra/fra 2 ore\n"
         "  • tra/fra 30 minuti\n"
         "  • tra/fra mezz'ora\n"
@@ -255,6 +263,54 @@ def _parse_reminder(text: str):
             if h is not None:
                 base = now + timedelta(days=2)
                 dt = make_dt(base.year, base.month, base.day, h, mn)
+                rest = m.group(3)
+
+    # 3b. domani mattina / domani pomeriggio / domani sera [alle HH[:MM]]
+    if dt is None:
+        m = re.match(rf'domani\s+(mattina|pomeriggio|sera)(?:\s+alle\s+{TIME_PAT})?\s*(.*)', text, FLAGS)
+        if m:
+            slot = m.group(1).lower()
+            default_h = {'mattina': 9, 'pomeriggio': 15, 'sera': 21}[slot]
+            h, mn = parse_hm(m.group(2), m.group(3)) if m.group(2) else (default_h, 0)
+            if h is not None:
+                base = now + timedelta(days=1)
+                dt = make_dt(base.year, base.month, base.day, h, mn)
+                rest = m.group(4)
+
+    # 3c. stasera [alle HH[:MM]]
+    if dt is None:
+        m = re.match(rf'stasera(?:\s+alle\s+{TIME_PAT})?\s*(.*)', text, FLAGS)
+        if m:
+            h, mn = parse_hm(m.group(1), m.group(2)) if m.group(1) else (21, 0)
+            if h is not None:
+                dt = make_dt(now.year, now.month, now.day, h, mn)
+                rest = m.group(3)
+
+    # 3d. oggi pomeriggio [alle HH[:MM]]
+    if dt is None:
+        m = re.match(rf'oggi\s+pomeriggio(?:\s+alle\s+{TIME_PAT})?\s*(.*)', text, FLAGS)
+        if m:
+            h, mn = parse_hm(m.group(1), m.group(2)) if m.group(1) else (15, 0)
+            if h is not None:
+                dt = make_dt(now.year, now.month, now.day, h, mn)
+                rest = m.group(3)
+
+    # 3e. stamattina / stamani [alle HH[:MM]]
+    if dt is None:
+        m = re.match(rf'(?:stamattina|stamani)(?:\s+alle\s+{TIME_PAT})?\s*(.*)', text, FLAGS)
+        if m:
+            h, mn = parse_hm(m.group(1), m.group(2)) if m.group(1) else (9, 0)
+            if h is not None:
+                dt = make_dt(now.year, now.month, now.day, h, mn)
+                rest = m.group(3)
+
+    # 3f. stanotte [alle HH[:MM]]
+    if dt is None:
+        m = re.match(rf'stanotte(?:\s+alle\s+{TIME_PAT})?\s*(.*)', text, FLAGS)
+        if m:
+            h, mn = parse_hm(m.group(1), m.group(2)) if m.group(1) else (23, 0)
+            if h is not None:
+                dt = make_dt(now.year, now.month, now.day, h, mn)
                 rest = m.group(3)
 
     # 4. tra/fra mezz'ora / mezzora
@@ -631,6 +687,11 @@ async def ricordami_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "• domani alle 9 di …\n"
                 "• oggi alle 18:30 di …\n"
                 "• dopodomani alle 21 di …\n"
+                "• stasera di … (→ 21:00)\n"
+                "• oggi pomeriggio di … (→ 15:00)\n"
+                "• stamattina di … (→ 9:00)\n"
+                "• stanotte di … (→ 23:00)\n"
+                "• domani mattina/pomeriggio/sera di …\n"
                 "• tra/fra 2 ore di …\n"
                 "• lunedì alle 10 di …\n"
                 "• il 5 marzo alle 9 di …\n\n"
